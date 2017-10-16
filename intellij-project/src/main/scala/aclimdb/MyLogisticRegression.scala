@@ -133,7 +133,7 @@ object MyLogisticRegression {
 
     logisticRegression(resizedTrainingData, resizedTestData, spark)
     //decisionTree(resizedTrainingData, resizedTestData, spark)
-    randomForest(resizedTrainingData, resizedTestData, spark)
+    //randomForest(resizedTrainingData, resizedTestData, spark)
     elasticNetLogisticRegression(resizedTrainingData, resizedTestData, spark)
 
     // Total time
