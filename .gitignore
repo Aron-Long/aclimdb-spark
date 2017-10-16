@@ -2,3 +2,5 @@
 /dataset/aclImdb/
 target/
 .idea
+*.class
+*.log
