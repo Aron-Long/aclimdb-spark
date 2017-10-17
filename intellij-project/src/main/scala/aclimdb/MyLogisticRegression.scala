@@ -12,20 +12,19 @@ object MyLogisticRegression {
 
   def getTime(startTime: Long): Double = (System.nanoTime - startTime) / 1e9
 
-  def logisticRegression(resizedTrainingData: DataFrame, resizedTestData: DataFrame, spark: SparkSession): Unit = {
+  def logisticRegression(resizedTrainingData: DataFrame, resizedTestData: DataFrame, spark: SparkSession, testSize: Long): Unit = {
     //Logistic regression
     import spark.implicits._
 
     val startTime = System.nanoTime
-    var lr = new LogisticRegression()
+    var mse = new LogisticRegression()
       .setMaxIter(40)
-      .setRegParam(0.01)
-    val model = lr.fit(resizedTrainingData)
-    val trainedTestData = model.transform(resizedTestData)
-    val mse = trainedTestData
+      .setRegParam(0.01)//get lr
+      .fit(resizedTrainingData) //get model
+      .transform(resizedTestData)//get testedData
       .map(row => row.getAs[Double]("label") - row.getAs[Double]("prediction"))
       .map (x => x * x)
-      .reduce(_+_) / trainedTestData.count
+      .reduce(_+_) / testSize
 
     println("Mean squared error by logistic regression: " + mse)
     println("Logistic regression ran in " + getTime(startTime) + " seconds")
@@ -58,21 +57,20 @@ object MyLogisticRegression {
     println("Decision tree regressor ran in " + getTime(startTime) + " seconds")
   }
 
-  def elasticNetLogisticRegression(resizedTrainingData: DataFrame, resizedTestData: DataFrame, spark: SparkSession): Unit = {
+  def elasticNetLogisticRegression(resizedTrainingData: DataFrame, resizedTestData: DataFrame, spark: SparkSession, testSize: Long): Unit = {
     //ElasticNet regression
     import spark.implicits._
 
     val startTime = System.nanoTime
-    var lr = new LogisticRegression()
+    var mse = new LogisticRegression()
       .setMaxIter(40)
       .setRegParam(0.01)
-      .setElasticNetParam(0.1)
-    val model = lr.fit(resizedTrainingData)
-    val trainedTestData = model.transform(resizedTestData)
-    val mse = trainedTestData
+      .setElasticNetParam(0.1) // get lr
+      .fit(resizedTrainingData) // get model
+      .transform(resizedTestData) // get trained test data
       .map(row => row.getAs[Double]("label") - row.getAs[Double]("prediction"))
       .map (x => x * x)
-      .reduce(_+_) / trainedTestData.count
+      .reduce(_+_) / testSize
 
     println("Mean squared error by elastic net logistic regression: " + mse)
     println("Elastic net logistic regression ran in " + getTime(startTime) + " seconds")
@@ -114,8 +112,8 @@ object MyLogisticRegression {
     val Seq(trainingData, testData) =
       Seq("aclImdb/train/labeledBow-1-index.feat",
         "aclImdb/test/labeledBow-1-index.feat")
-        .map(spark.read.format("libsvm").load(_))
-    println("Data loaded. Refine data ...")
+        .map(spark.read.format("libsvm").load(_).coalesce(48))//npartitions = ncores * 3 = 16 * 3 = 48
+    println("Data load pipeline created (Data is not fetched yet). Refine data ...")
 
     val startTime = System.nanoTime
 
@@ -127,14 +125,15 @@ object MyLogisticRegression {
           (row.getAs[Double](0),
             new SparseVector(finalSize, row.getAs[SparseVector](1).indices, row.getAs[SparseVector](1).values)
           )
-        ).toDF("label", "features"))
+        ).toDF("label", "features").cache)
+    val cnt = resizedTestData.count
 
-    println("Data refined. Start regression with logistic regression...")
+    println("Data refined pipeline created. Start regression with logistic regression...")
 
-    logisticRegression(resizedTrainingData, resizedTestData, spark)
+    logisticRegression(resizedTrainingData, resizedTestData, spark, cnt)
     //decisionTree(resizedTrainingData, resizedTestData, spark)
     //randomForest(resizedTrainingData, resizedTestData, spark)
-    elasticNetLogisticRegression(resizedTrainingData, resizedTestData, spark)
+    elasticNetLogisticRegression(resizedTrainingData, resizedTestData, spark, cnt)
 
     // Total time
     val finishTime = System.nanoTime
