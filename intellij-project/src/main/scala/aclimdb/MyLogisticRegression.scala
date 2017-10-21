@@ -109,23 +109,30 @@ object MyLogisticRegression {
     println("Spark session inited. Load data ...")
 
     //Load data
-    val Seq(trainingData, testData) =
+    val originData =
       Seq("aclImdb/train/labeledBow-1-index.feat",
         "aclImdb/test/labeledBow-1-index.feat")
         .map(spark.read.format("libsvm").load(_).coalesce(48))//npartitions = ncores * 3 = 16 * 3 = 48
     println("Data load pipeline created (Data is not fetched yet). Refine data ...")
+    val Seq(trainingData, testData) = originData
 
     val startTime = System.nanoTime
 
     //refine input data size
-    val finalSize = Seq(trainingData, testData).map(_.select("features").first.getAs[SparseVector](0).size).max
+    val dataSizes = originData.map(_.select("features").first.getAs[SparseVector](0).size)
+    val finalSize = dataSizes.max
     val Seq(resizedTrainingData, resizedTestData) =
-      Seq(trainingData, testData)
-        .map(_.map( row =>
-          (row.getAs[Double](0),
-            new SparseVector(finalSize, row.getAs[SparseVector](1).indices, row.getAs[SparseVector](1).values)
-          )
-        ).toDF("label", "features").cache)
+      (originData zip dataSizes)
+        .map(x => {
+          if (x._2 == finalSize)
+            x._1
+          else
+            x._1.map( row =>
+                (row.getAs[Double](0),
+                  new SparseVector(finalSize, row.getAs[SparseVector](1).indices, row.getAs[SparseVector](1).values)
+                )
+              ).toDF("label", "features").cache
+        })
     val cnt = resizedTestData.count
 
     println("Data refined pipeline created. Start regression with logistic regression...")
