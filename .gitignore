@@ -1,6 +1,7 @@
-/tags
+tags
 /dataset/aclImdb/
 target/
 .idea
 *.class
 *.log
+spark-warehouse
